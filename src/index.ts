@@ -5,7 +5,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { getBearerHandler, WebApi } from "azure-devops-node-api";
+import { getBearerHandler, WebApi, getPersonalAccessTokenHandler } from "azure-devops-node-api";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
@@ -47,7 +47,7 @@ const argv = yargs(hideBin(process.argv))
     alias: "a",
     describe: "Type of authentication to use",
     type: "string",
-    choices: ["interactive", "azcli", "env", "envvar"],
+    choices: ["interactive", "azcli", "env", "envvar", "pat"],
     default: defaultAuthenticationType,
   })
   .option("tenant", {
@@ -55,11 +55,26 @@ const argv = yargs(hideBin(process.argv))
     describe: "Azure tenant ID (optional, applied when using 'interactive' and 'azcli' type of authentication)",
     type: "string",
   })
+  .option("server-url", {
+    alias: "s",
+    describe: "Azure DevOps server URL (optional, defaults to https://dev.azure.com/<organization>)",
+    type: "string",
+  })
+  .option("pat-token", {
+    alias: "p",
+    describe: "Personal Access Token (PAT) for 'pat' authentication type",
+    type: "string",
+  })
+  .option("server-version", {
+    alias: "v",
+    describe: "Azure DevOps Server version (optional, e.g., '2020', '2022')",
+    type: "string",
+  })
   .help()
   .parseSync();
 
 export const orgName = argv.organization as string;
-const orgUrl = "https://dev.azure.com/" + orgName;
+const orgUrl = argv.serverUrl ?? "https://dev.azure.com/" + orgName;
 
 const domainsManager = new DomainsManager(argv.domains);
 export const enabledDomains = domainsManager.getEnabledDomains();
@@ -67,7 +82,7 @@ export const enabledDomains = domainsManager.getEnabledDomains();
 function getAzureDevOpsClient(getAzureDevOpsToken: () => Promise<string>, userAgentComposer: UserAgentComposer): () => Promise<WebApi> {
   return async () => {
     const accessToken = await getAzureDevOpsToken();
-    const authHandler = getBearerHandler(accessToken);
+    const authHandler = argv.authentication === "pat" ? getPersonalAccessTokenHandler(accessToken) : getBearerHandler(accessToken);
     const connection = new WebApi(orgUrl, authHandler, undefined, {
       productName: "AzureDevOps.MCP",
       productVersion: packageVersion,
@@ -104,7 +119,8 @@ async function main() {
     userAgentComposer.appendMcpClientInfo(server.server.getClientVersion());
   };
   const tenantId = (await getOrgTenant(orgName)) ?? argv.tenant;
-  const authenticator = createAuthenticator(argv.authentication, tenantId);
+  const patToken = argv.patToken as string | undefined;
+  const authenticator = createAuthenticator(argv.authentication, tenantId, patToken);
 
   // removing prompts untill further notice
   // configurePrompts(server);

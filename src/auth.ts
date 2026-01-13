@@ -8,6 +8,18 @@ import { logger } from "./logger.js";
 
 const scopes = ["499b84ac-1321-427f-aa17-267ca6975798/.default"];
 
+class PersonalAccessTokenAuthenticator {
+  private pat: string;
+
+  constructor(pat: string) {
+    this.pat = pat;
+  }
+
+  public async getToken(): Promise<string> {
+    return this.pat;
+  }
+}
+
 class OAuthAuthenticator {
   static clientId = "0d50963b-7bb9-4fe7-94c7-a99af00b5136";
   static defaultAuthority = "https://login.microsoftonline.com/common";
@@ -75,7 +87,7 @@ class OAuthAuthenticator {
   }
 }
 
-function createAuthenticator(type: string, tenantId?: string): () => Promise<string> {
+function createAuthenticator(type: string, tenantId?: string, patToken?: string): () => Promise<string> {
   logger.debug(`Creating authenticator of type '${type}' with tenantId='${tenantId ?? "undefined"}'`);
   switch (type) {
     case "envvar":
@@ -112,6 +124,18 @@ function createAuthenticator(type: string, tenantId?: string): () => Promise<str
         }
         logger.debug(`${type}: Successfully obtained Azure DevOps token`);
         return result.token;
+      };
+    case "pat":
+      logger.debug(`Authenticator: Using Personal Access Token (PAT) authentication (ADO_MCP_AUTH_TOKEN)`);
+      const pat = patToken;
+      if (!pat) {
+        logger.error(`pat: ADO_MCP_AUTH_TOKEN environment variable is not set or empty`);
+        throw new Error("Environment variable 'ADO_MCP_AUTH_TOKEN' is not set or empty. Please set it with a valid Azure DevOps Personal Access Token.");
+      }
+      const patAuthenticator = new PersonalAccessTokenAuthenticator(pat);
+      return () => {
+        logger.debug(`pat: Returning Personal Access Token`);
+        return patAuthenticator.getToken();
       };
 
     default:
