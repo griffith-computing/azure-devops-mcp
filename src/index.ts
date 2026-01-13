@@ -65,11 +65,6 @@ const argv = yargs(hideBin(process.argv))
     describe: "Personal Access Token (PAT) for 'pat' authentication type",
     type: "string",
   })
-  .option("server-version", {
-    alias: "v",
-    describe: "Azure DevOps Server version (optional, e.g., '2020', '2022')",
-    type: "string",
-  })
   .help()
   .parseSync();
 
